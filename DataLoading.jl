@@ -3,10 +3,10 @@ using Flux
 using DataLoaders
 using Images
 using DataFrames, CSV
-#import LearnBase: nobs, getobs
 import LearnBase
 #Using DataLoaders' example.
 ##
+
 #Dataset struct, holds filenames, the dir_path, IDs, and classes.
 struct ImageDataset
     files::Vector{String}
@@ -44,26 +44,34 @@ function LearnBase.getobs(dataset::ImageDataset, range::UnitRange{Int64})
   subpath = dataset.files[range]
   file = joinpath.(dataset.dir, subpath)
   data = hcat(give_data.(AstroImage.(file))...)
-  #data = file
   label = dataset.classes[range]
   data, label
 end
 
-dataloader = DataLoaders.DataLoader(data, 10; collate = false, partial = false)
-#dataloader = DataLoaders.DataLoader(data, 10)
+function LearnBase.getobs!(buf, dataset::ImageDataset, i::Int) :: (Vector{Float32}, Int64)
+  subpath = dataset.files[i]
+  file = joinpath(dataset.dir, subpath)
+  buf[1] = reshape(AstroImage(file).data[1],101*101)
+  buf[2] = dataset.classes[i]
+  buf
+end
+
+function LearnBase.getobs!(buf, dataset::ImageDataset, range::UnitRange{Int64}) :: (Vector{Float32}, Int64)
+  subpath = dataset.files[range]
+  file = joinpath.(dataset.dir, subpath)
+  buf[1] = hcat(give_data.(AstroImage.(file))...)
+  buf[2] = dataset.classes[range]
+  buf
+end
+
+dataloader = DataLoaders.DataLoader(data, 10; collate = true)
 ##
+
 using Flux: train!
 f = Dense(101*101,1)
-train = reshape(LearnBase.getobs(data,10)[1],101^2)
-label = LearnBase.getobs(data,10)[2][1]
-f(reshape(train,101*101))
 loss(x,y) = Flux.mae(f(x),y)
-loss(train,label)
 opt = Descent()
 parameters = params(f)
-
-trains, labels = LearnBase.getobs(data,1:10)
-#train!(loss, parameters, zip(trains,labels), opt)
 train!(loss, parameters, dataloader, opt)
 
 println("It ran")
